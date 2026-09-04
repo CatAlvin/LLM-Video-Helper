@@ -2,6 +2,8 @@
 
 将视频、音频、图片、文档、表格和压缩包整理成适合交给多模态 LLM 的上下文包。
 
+*A local tool that turns videos, audio, images, documents, spreadsheets, and archives into structured context packages for multimodal LLMs.*
+
 ## 版本与进度
 
 - 当前版本：**1.1.0**
