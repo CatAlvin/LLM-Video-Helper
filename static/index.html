@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="把视频、音频、文档、图片与压缩包整理成 LLM 易读的 TXT 和 PNG 上下文包。" />
+    <title>知帧 · 多模态上下文整理器</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css?v=20260830-2" />
+  </head>
+  <body>
+    <a class="skip-link" href="#workspace">跳到工作区</a>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="知帧首页">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32"><path d="M7 6.5h12.5A5.5 5.5 0 0 1 25 12v13.5H12.5A5.5 5.5 0 0 1 7 20V6.5Z"/><path d="M11 11h10M11 15h7M11 19h10"/></svg>
+        </span>
+        <span><strong>知帧</strong><small>ContextKit</small></span>
+      </a>
+      <nav class="top-actions" aria-label="快捷操作">
+        <a href="#taskCenter" class="top-link">任务中心</a>
+        <button id="compactModeButton" class="top-link" type="button" aria-pressed="false">隐藏介绍</button>
+        <div class="privacy-pill" title="文件只保存在本机 workspace 目录，不上传到第三方服务">
+          <span class="status-dot" aria-hidden="true"></span>本地处理
+        </div>
+      </nav>
+    </header>
+
+    <main id="workspace" class="page-shell">
+      <section class="intro" aria-labelledby="page-title">
+        <div class="intro-copy">
+          <p class="eyebrow">LLM CONTEXT PREP</p>
+          <h1 id="page-title">把杂乱文件，整理成<br /><em>模型真正读得懂</em>的上下文</h1>
+          <p class="lede">上传视频、音频、图片、Office、PDF、压缩包或整个文件夹。先预检，再由本机 GPU 整理为 TXT 与 PNG。</p>
+        </div>
+        <aside class="output-note" aria-label="输出说明">
+          <div class="output-note-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>
+          </div>
+          <div><strong>一个包，直接交给 LLM</strong><p><code>context.txt</code> 汇总全文、转写与索引；<code>visual_*.png</code> 保留关键画面。</p></div>
+        </aside>
+      </section>
+
+      <section class="workspace-grid">
+        <div class="main-column">
+          <article class="panel upload-panel">
+            <div class="panel-heading">
+              <span class="step-number">01</span>
+              <div><h2>添加素材</h2><p>可选择文件、整个文件夹，或直接拖入</p></div>
+            </div>
+
+            <div class="dropzone" id="dropzone" aria-label="添加文件或文件夹">
+              <input id="fileInput" type="file" multiple hidden />
+              <input id="folderInput" type="file" webkitdirectory multiple hidden />
+              <span class="drop-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M5 14v5h14v-5"/></svg></span>
+              <span class="drop-title">把文件或文件夹拖到这里</span>
+              <span class="drop-subtitle">支持任意格式，能识别的会自动深度解析</span>
+              <span class="drop-actions">
+                <button id="chooseFilesButton" type="button">选择文件</button>
+                <button id="chooseFolderButton" type="button">选择文件夹</button>
+              </span>
+            </div>
+
+            <div class="format-strip" aria-label="重点支持的格式">
+              <span>MP4 / MOV</span><span>MP3 / WAV</span><span>PDF / DOCX</span><span>PPTX / XLSX</span><span>ZIP / 7Z</span><span>文件夹</span>
+            </div>
+
+            <div class="upload-limit-setting">
+              <div>
+                <label for="uploadLimitGb">本次上传上限 <span class="important-mark">重要</span></label>
+                <p class="setting-help">最高 25 GB。文件按 16 MB 分片上传，支持暂停、恢复、失败块重试和 SHA-256 校验。</p>
+              </div>
+              <div class="number-field"><input id="uploadLimitGb" type="number" min="0.1" max="25" step="0.1" value="25" /><span>GB</span></div>
+            </div>
+
+            <div id="resumeNotice" class="resume-notice" hidden>
+              <strong>正在恢复历史上传</strong>
+              <p id="resumeNoticeText">请重新选择原文件，系统只会补传缺失分片。</p>
+              <button id="cancelResumeButton" type="button" class="text-button">退出恢复</button>
+            </div>
+
+            <div id="fileSection" class="file-section is-empty" aria-live="polite">
+              <div class="file-summary"><span id="fileCount">还没有文件</span><button id="clearFiles" type="button" class="text-button" hidden>全部清除</button></div>
+              <ul id="fileList" class="file-list"></ul>
+            </div>
+          </article>
+
+          <article class="panel settings-panel">
+            <div class="panel-heading heading-with-tag">
+              <span class="step-number">02</span>
+              <div><h2>选择处理目标</h2><p>简洁模式只保留三个真正影响结果的选择</p></div>
+              <span class="recommend-tag">推荐值已填好</span>
+            </div>
+
+            <div class="simple-settings">
+              <div class="setting-group core-setting">
+                <label for="taskPreset">用途 <span class="important-mark">重要</span></label>
+                <select id="taskPreset">
+                  <option value="general" selected>通用整理</option>
+                  <option value="meeting">会议纪要</option>
+                  <option value="course">课程与学习</option>
+                  <option value="video">视频理解</option>
+                  <option value="research">研究与归档</option>
+                  <option value="ocr">图片与扫描件 OCR</option>
+                </select>
+                <p class="setting-help">用途模板会设置转写、取帧、OCR 和文档读取策略。</p>
+              </div>
+              <div class="setting-group core-setting">
+                <label for="qualityProfile">质量 <span class="important-mark">重要</span></label>
+                <select id="qualityProfile">
+                  <option value="fast">快速，适合初筛</option>
+                  <option value="balanced" selected>均衡，推荐</option>
+                  <option value="precise">精细，适合正式材料</option>
+                </select>
+                <p class="setting-help">精细模式使用更大的语音模型，并增加候选画面与文档页数。</p>
+              </div>
+              <div class="setting-group range-setting core-setting image-count-setting">
+                <div class="setting-label-row"><label for="maxImages">最多输出图片 <span class="important-mark">重要</span></label><output id="maxImagesValue" for="maxImages">6 张</output></div>
+                <input id="maxImages" class="range" type="range" min="0" max="10" step="1" value="6" />
+                <div class="range-scale"><span>仅 TXT</span><span>最多 10 张</span></div>
+              </div>
+            </div>
+
+            <details class="advanced expert-settings" id="expertSettings">
+              <summary><span><strong>专家模式</strong><small>模型、GPU、视频压缩、语言、OCR 与各类限制</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg></summary>
+              <div class="advanced-body">
+                <div class="important-settings">
+                  <fieldset class="setting-group device-setting">
+                    <legend>模型运行设备</legend>
+                    <p class="setting-help">自动模式优先使用 NVIDIA GPU 与 FP16，GPU 不可用时回退 CPU。</p>
+                    <div class="segmented-control device-options">
+                      <label><input type="radio" name="processingDevice" value="auto" checked /><span>自动<small>优先 GPU</small></span></label>
+                      <label><input id="cudaDeviceOption" type="radio" name="processingDevice" value="cuda" /><span><b id="gpuDeviceName">NVIDIA GPU</b><small id="gpuDeviceMeta">CUDA FP16</small></span></label>
+                      <label><input type="radio" name="processingDevice" value="cpu" /><span>仅 CPU<small>INT8</small></span></label>
+                    </div>
+                  </fieldset>
+
+                  <fieldset class="setting-group model-setting">
+                    <legend>语音识别模型</legend>
+                    <p class="setting-help">模型越大越准确，也会占用更多首次下载空间和处理时间。</p>
+                    <div class="segmented-control model-options">
+                      <label><input type="radio" name="whisperModel" value="base" /><span>快速<small>Base · 145 MB</small></span></label>
+                      <label><input type="radio" name="whisperModel" value="small" checked /><span>均衡<small>Small · 466 MB</small></span></label>
+                      <label><input type="radio" name="whisperModel" value="medium" /><span>精细<small>Medium · 1.5 GB</small></span></label>
+                      <label><input type="radio" name="whisperModel" value="large-v3" /><span>最高<small>Large-v3 · 3.1 GB</small></span></label>
+                    </div>
+                  </fieldset>
+
+                  <div class="split-settings">
+                    <div class="setting-group compact-setting"><label for="videoSampling">视频取帧方式</label><select id="videoSampling"><option value="balanced" selected>均匀覆盖全片</option><option value="scene">优先场景变化</option><option value="interval">固定时间间隔</option></select><p class="setting-help">场景模式更细致，但需要完整扫描视频。</p></div>
+                    <div class="setting-group compact-setting" id="frameCountGroup"><label for="videoFrameCount">每个视频候选帧数</label><div class="number-field"><input id="videoFrameCount" type="number" min="1" max="60" value="12" /><span>帧</span></div><p class="setting-help">候选越多，越不容易漏掉关键画面。</p></div>
+                    <div class="setting-group compact-setting" id="intervalGroup" hidden><label for="frameInterval">固定取帧间隔</label><div class="number-field"><input id="frameInterval" type="number" min="2" max="3600" value="30" /><span>秒</span></div><p class="setting-help">仍受候选帧数上限约束。</p></div>
+                  </div>
+
+                  <fieldset class="setting-group compression-setting">
+                    <div class="compression-heading">
+                      <div><span class="compression-title">视频压缩</span><p class="setting-help">统一为 MP4 / H.264，自动模式优先使用 NVIDIA NVENC。</p></div>
+                      <label class="inline-switch"><span id="compressionStateLabel">视频压缩：关闭</span><input id="videoCompressionEnabled" type="checkbox" aria-label="视频压缩" /><i aria-hidden="true"></i></label>
+                    </div>
+                    <div id="compressionOptions" class="compression-options" hidden>
+                      <div class="advanced-grid compression-grid">
+                        <div class="compact-option"><label for="videoParseSource">解析来源</label><select id="videoParseSource"><option value="compressed" selected>压缩后视频</option><option value="original">原始视频</option></select><p class="setting-help">压缩后读取通常更快。</p></div>
+                        <div class="compact-option"><label for="videoKeepCompressed">完成后</label><select id="videoKeepCompressed"><option value="false" selected>删除压缩视频</option><option value="true">满足收益门槛时保留</option></select><p class="setting-help">保留时提供独立下载。</p></div>
+                        <div class="compact-option"><label for="videoCompressionMinSavings">最低节省比例</label><div class="number-field"><input id="videoCompressionMinSavings" type="number" min="0" max="80" value="10" /><span>%</span></div><p class="setting-help">低于门槛的压缩副本会自动丢弃。</p></div>
+                        <div class="compact-option"><label for="videoCompressionDevice">压缩设备</label><select id="videoCompressionDevice"><option value="auto" selected>自动，优先 NVIDIA GPU</option><option value="cuda">强制 NVIDIA GPU</option><option value="cpu">仅 CPU</option></select></div>
+                        <div class="compact-option"><label for="videoCompressionMaxHeight">最高分辨率</label><select id="videoCompressionMaxHeight"><option value="0">保留原分辨率</option><option value="2160">2160p</option><option value="1440">1440p</option><option value="1080" selected>1080p</option><option value="720">720p</option><option value="480">480p</option></select></div>
+                        <div class="compact-option"><label for="videoCompressionPreset">编码速度</label><select id="videoCompressionPreset"><option value="fast">快速</option><option value="balanced" selected>均衡</option><option value="quality">精细</option></select></div>
+                        <div class="compact-option"><label for="videoCompressionQuality">画面质量</label><div class="number-field"><input id="videoCompressionQuality" type="number" min="18" max="35" value="24" /><span>CRF/CQ</span></div><p class="setting-help">18 更清晰，24 推荐，35 文件更小。</p></div>
+                        <div class="compact-option"><label for="videoCompressionAudioBitrate">音频码率</label><div class="number-field"><input id="videoCompressionAudioBitrate" type="number" min="32" max="320" step="16" value="128" /><span>kbps</span></div></div>
+                      </div>
+                    </div>
+                  </fieldset>
+                </div>
+
+                <div class="advanced-grid secondary-options">
+                  <div class="setting-group compact-setting"><label for="language">音频语言</label><select id="language"><option value="auto" selected>自动检测</option><option value="zh">中文</option><option value="en">英语</option><option value="ja">日语</option><option value="ko">韩语</option><option value="fr">法语</option><option value="de">德语</option><option value="es">西班牙语</option></select></div>
+                  <div class="setting-group compact-setting"><label for="framesPerSheet">每张拼图画面数</label><select id="framesPerSheet"><option value="2">2 个</option><option value="4">4 个</option><option value="6" selected>6 个</option><option value="9">9 个</option></select></div>
+                  <div class="setting-group compact-setting"><label for="maxDocumentPages">每份文档最多预览页</label><div class="number-field"><input id="maxDocumentPages" type="number" min="1" max="50" value="12" /><span>页</span></div></div>
+                  <div class="setting-group compact-setting"><label for="sceneThreshold">场景变化灵敏度</label><select id="sceneThreshold"><option value="0.22">灵敏</option><option value="0.32" selected>均衡</option><option value="0.45">稳健</option></select></div>
+                  <div class="setting-group compact-setting"><label for="archiveDepth">压缩包递归深度</label><select id="archiveDepth"><option value="0">不展开</option><option value="1">1 层</option><option value="2" selected>2 层</option><option value="3">3 层</option><option value="4">4 层</option></select></div>
+                  <div class="setting-group compact-setting"><label for="tableRows">每张表最多读取行数</label><div class="number-field"><input id="tableRows" type="number" min="10" max="5000" value="300" /><span>行</span></div></div>
+                </div>
+
+                <div class="toggle-list">
+                  <label class="toggle-row"><span><strong>语音转文字</strong><small>视频先分离音轨，再由本地 Whisper 识别</small></span><input id="transcriptionEnabled" type="checkbox" checked /><i aria-hidden="true"></i></label>
+                  <label class="toggle-row"><span><strong>保留转写时间戳</strong><small>方便 LLM 回到原视频片段</small></span><input id="includeTimestamps" type="checkbox" checked /><i aria-hidden="true"></i></label>
+                  <label class="toggle-row"><span><strong>图片文字 OCR</strong><small>识别截图、扫描页与图片中的文字</small></span><input id="ocrImages" type="checkbox" checked /><i aria-hidden="true"></i></label>
+                  <label class="toggle-row"><span><strong>生成文档页面预览</strong><small>PDF 页面会参与最终拼图筛选</small></span><input id="renderDocuments" type="checkbox" checked /><i aria-hidden="true"></i></label>
+                  <label class="toggle-row"><span><strong>收集技术元数据</strong><small>保留时长、编码、尺寸与表格规模</small></span><input id="includeMetadata" type="checkbox" checked /><i aria-hidden="true"></i></label>
+                </div>
+              </div>
+            </details>
+          </article>
+        </div>
+
+        <aside class="side-column">
+          <div class="side-sticky">
+            <article class="panel action-panel">
+              <div class="panel-heading compact-heading"><span class="step-number">03</span><div><h2>上传并预检</h2><p>确认估算后才开始处理</p></div></div>
+              <div class="package-preview">
+                <div class="package-row"><span class="package-icon txt">TXT</span><div><strong>context.txt</strong><small>全文、转写、元数据与索引</small></div><b>1</b></div>
+                <div class="package-row"><span class="package-icon png">PNG</span><div><strong>visual_*.png</strong><small>关键帧、页面与图片</small></div><b id="previewImageCount">≤ 6</b></div>
+              </div>
+              <button id="startButton" class="primary-button" type="button" disabled aria-describedby="startButtonReason"><span id="startButtonLabel">上传并预检</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M14 7l5 5-5 5"/></svg></button>
+              <p id="startButtonReason" class="button-reason">请先添加文件或文件夹</p>
+              <p class="action-hint"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5 16 5v4.5c0 3.8-2.6 6.4-6 8-3.4-1.6-6-4.2-6-8V5l6-2.5Z"/><path d="m7.5 10 1.7 1.7 3.5-4"/></svg>文件仅保存在本机。上传中断后，只需补传缺失分片。</p>
+            </article>
+
+            <article id="runtimeCard" class="runtime-card" aria-live="polite"><div class="runtime-heading"><span id="runtimeDot" class="runtime-dot checking"></span><strong id="runtimeTitle">正在检查处理引擎</strong></div><p id="runtimeText">确认 FFmpeg、文档解析与本地识别组件是否就绪</p></article>
+
+            <article id="preflightPanel" class="panel preflight-panel" hidden>
+              <div class="section-title-row"><div><span class="section-kicker">处理前预检</span><h3>先确认，再开始</h3></div><span id="preflightStatus" class="state-badge ready">已就绪</span></div>
+              <dl id="preflightMetrics" class="metric-grid"></dl>
+              <div id="compressionEstimate" class="estimate-callout" hidden></div>
+              <ul id="preflightFiles" class="preflight-files"></ul>
+              <div id="preflightWarnings" class="preflight-warnings" hidden></div>
+              <p id="preflightNotice" class="estimate-notice"></p>
+              <button id="confirmStartButton" class="primary-button" type="button">确认并开始处理</button>
+              <button id="cancelReadyButton" class="secondary-button" type="button">取消本次任务</button>
+            </article>
+
+            <article id="progressPanel" class="panel progress-panel" hidden aria-live="polite">
+              <div class="progress-topline"><span id="progressState">正在处理</span><strong id="progressPercent">0%</strong></div>
+              <div class="progress-track"><span id="progressBar"></span></div>
+              <h3 id="progressStage">准备上传</h3><p id="progressMessage">正在建立分片会话</p>
+              <div id="uploadActions" class="inline-actions" hidden>
+                <button id="pauseUploadButton" type="button" class="secondary-button">暂停上传</button>
+                <button id="cancelJobButton" type="button" class="secondary-button danger-button">取消任务</button>
+              </div>
+              <ol id="eventList" class="event-list"></ol>
+              <div id="resultActions" class="result-actions" hidden>
+                <div class="result-success"><strong>整理完成</strong><span>结果已校验，可直接下载并交给 LLM。</span></div>
+                <a id="downloadButton" class="download-button" href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 20h14"/></svg>下载上下文包</a>
+                <div id="compressedDownloads" class="compressed-downloads" hidden></div>
+                <button id="newTaskButton" type="button" class="secondary-button">继续处理新文件</button>
+              </div>
+              <div id="errorBox" class="error-box" hidden></div>
+            </article>
+          </div>
+        </aside>
+      </section>
+
+      <section id="taskCenter" class="task-center" aria-labelledby="taskCenterTitle">
+        <div class="task-center-heading">
+          <div><h2 id="taskCenterTitle">任务中心</h2><p>上传进度与处理记录保存在本机，可恢复、重试、下载或清理。</p></div>
+          <button id="refreshTasksButton" class="secondary-button compact-button" type="button">刷新</button>
+        </div>
+        <div id="taskFilters" class="task-filters" role="group" aria-label="任务筛选">
+          <button type="button" data-filter="all" class="active">全部</button>
+          <button type="button" data-filter="active">进行中</button>
+          <button type="button" data-filter="completed">已完成</button>
+          <button type="button" data-filter="failed">失败或取消</button>
+        </div>
+        <p id="taskCenterEmpty" class="task-empty">还没有历史任务。添加文件并完成预检后，这里会持续保存进度。</p>
+        <div id="taskList" class="task-list"></div>
+      </section>
+
+      <section class="method-section" aria-labelledby="method-title">
+        <p class="eyebrow">WHAT HAPPENS INSIDE</p><h2 id="method-title">不是简单转格式，而是按内容选择路径</h2>
+        <div class="method-grid"><article><span>识别</span><h3>先做预检</h3><p>读取真实类型、时长、轨道与预计资源，再由你确认。</p></article><article><span>传输</span><h3>分片校验</h3><p>逐块保存与校验，中断后只补传缺失内容。</p></article><article><span>提取</span><h3>保留来源</h3><p>时间戳、页码、文件路径和技术信息随结果保留。</p></article><article><span>整理</span><h3>控制输出</h3><p>代表画面统一筛选并拼图，在有限图片额度内覆盖更多信息。</p></article></div>
+      </section>
+    </main>
+
+    <footer><span>知帧 ContextKit</span><p>开放格式 · 本地处理 · 为任意 LLM 准备</p></footer>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="/app.js?v=20260830-2" defer></script>
+  </body>
+</html>

@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+workspace/jobs/
+workspace/logs/
+workspace/runtime/
+*.log
+.DS_Store
+Thumbs.db
